@@ -1,2 +1,2 @@
-# mod
- Connect Minecraft chat to... anything!
+# Chat Bridge
+Connect Minecraft chat to... anything!
