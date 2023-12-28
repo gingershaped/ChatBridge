@@ -4,37 +4,45 @@ import java.net.URI;
 import java.util.stream.Collectors;
 
 import org.jetbrains.annotations.Nullable;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 import com.mojang.logging.LogUtils;
 
 import io.github.gingerindustries.chatbridge.schemas.recieved.Announcement;
 import io.github.gingerindustries.chatbridge.schemas.recieved.Command;
 import io.github.gingerindustries.chatbridge.schemas.recieved.ReceivedChatMessage;
+import io.github.gingerindustries.chatbridge.schemas.sent.AdvancementGet;
+import io.github.gingerindustries.chatbridge.schemas.sent.PlayerDied;
 import io.github.gingerindustries.chatbridge.schemas.sent.PlayerJoined;
 import io.github.gingerindustries.chatbridge.schemas.sent.PlayerLeft;
+import io.github.gingerindustries.chatbridge.schemas.sent.QueryResponse;
 import io.github.gingerindustries.chatbridge.schemas.sent.SentChatMessage;
 import io.github.gingerindustries.chatbridge.schemas.sent.SentUser;
 import io.socket.client.Ack;
 import io.socket.client.IO;
+import io.socket.client.Manager;
 import io.socket.client.Socket;
+import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentUtils;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.ServerChatEvent;
+import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.entity.player.AdvancementEvent.AdvancementEarnEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 
 public class ChatBridge {
@@ -45,13 +53,13 @@ public class ChatBridge {
 	private Boolean registeredHandlers = false;
 
 	public ChatBridge(URI uri, MinecraftServer server, IEventBus modEventBus) {
-		LOGGER.info("Establishing connection");
-		LOGGER.debug("Target: " + uri.toASCIIString());
+		LOGGER.info("Connecting to server: " + uri.toASCIIString());
 		this.server = server;
 		this.socket = IO.socket(uri);
 
-		this.socket.io().on("reconnect_attempt", args -> LOGGER.warn("Connection failed, trying again..."));
-		this.socket.io().on("open", args -> {
+		this.socket.io().on(Manager.EVENT_RECONNECT, args -> LOGGER.info("Reconnected to server!"));
+		this.socket.io().on(Manager.EVENT_CLOSE, args -> LOGGER.warn("Connection lost!"));
+		this.socket.io().on(Manager.EVENT_OPEN, args -> {
 			LOGGER.info("Connected!");
 			if (!this.registeredHandlers) {
 				this.registerSocketListeners();
@@ -63,8 +71,17 @@ public class ChatBridge {
 	}
 
 	public void shutdown() {
-		LOGGER.info("Shutting down");
+		LOGGER.info("Closing connection");
 		this.socket.close();
+	}
+
+	private JSONObject jsonify(Object o) {
+		// TODO: This SUCKS!
+		try {
+			return new JSONObject(GSON.toJson(o));
+		} catch (JSONException e) {
+			throw new IllegalStateException();
+		}
 	}
 
 	private SentUser makeSentUser(Player player) {
@@ -76,18 +93,41 @@ public class ChatBridge {
 		modEventBus.addListener(this::onServerChatEvent);
 		modEventBus.addListener(this::onPlayerLoggedInEvent);
 		modEventBus.addListener(this::onPlayerLoggedOutEvent);
+		modEventBus.addListener(this::onPlayerGotAdvancementEvent);
+		modEventBus.addListener(this::onPlayerDiedEvent);
 	}
 
 	public void onServerChatEvent(ServerChatEvent event) {
-		this.socket.send(GSON.toJson(new SentChatMessage(makeSentUser(event.getPlayer()), event.getRawText())));
+		this.socket.send(jsonify(new SentChatMessage(makeSentUser(event.getPlayer()), event.getRawText())));
 	}
 
 	public void onPlayerLoggedInEvent(PlayerEvent.PlayerLoggedInEvent event) {
-		this.socket.emit("playerJoined", GSON.toJson(new PlayerJoined(makeSentUser(event.getEntity()))));
+		this.socket.emit("playerJoined", jsonify(new PlayerJoined(makeSentUser(event.getEntity()))));
 	}
 
 	public void onPlayerLoggedOutEvent(PlayerEvent.PlayerLoggedOutEvent event) {
-		this.socket.emit("playerLeft", GSON.toJson(new PlayerLeft(makeSentUser(event.getEntity()))));
+		this.socket.emit("playerLeft", jsonify(new PlayerLeft(makeSentUser((event.getEntity())))));
+	}
+
+	public void onPlayerGotAdvancementEvent(AdvancementEarnEvent event) {
+		DisplayInfo display = event.getAdvancement().getDisplay();
+		if (display != null && display.shouldAnnounceChat()) {
+			this.socket.emit("advancementGet", jsonify(new AdvancementGet(
+				makeSentUser(event.getEntity()),
+				display.getTitle().getString(), 
+				display.getDescription().getString()
+			)));
+		}
+	}
+
+	public void onPlayerDiedEvent(LivingDeathEvent event) {
+		LivingEntity entity = event.getEntity();
+		if (entity instanceof Player) {
+			this.socket.emit("playerDied", jsonify(new PlayerDied(
+				makeSentUser((Player) entity),
+				event.getSource().getLocalizedDeathMessage(entity).getString())
+			));
+		}
 	}
 
 	private void registerSocketListeners() {
@@ -100,7 +140,6 @@ public class ChatBridge {
 			this.onAnnouncement(announcement);
 		});
 		this.socket.on("command", (Object... args) -> {
-			LOGGER.debug("BALLS", args.length);
 			Command command = GSON.fromJson(args[0].toString(), Command.class);
 			if (args.length > 1 && args[1] instanceof Ack) {
 				this.onCommand(command, ((Ack) args[1]));
@@ -109,27 +148,44 @@ public class ChatBridge {
 				this.onCommand(command);
 			}
 		});
-		this.socket.on("userList", (Object... args) -> {
+		this.socket.on("query", (Object... args) -> {
 			assert args[0] instanceof Ack;
-			this.onUserList(((Ack) args[0]));
-		});
-		this.socket.on("tps", (Object... args) -> {
-			assert args[0] instanceof Ack;
-			this.onTPS(((Ack) args[0]));
+			this.onQuery(((Ack) args[0]));
 		});
 	}
 
 	private void onMessage(ReceivedChatMessage message) {
+		this.onMessage(message, null);
+	}
+	private void onMessage(ReceivedChatMessage message, @Nullable Ack ack) {
 		MutableComponent component = Component.empty();
-		component.append(ComponentUtils.wrapInSquareBrackets(Component.literal(message.user().name())
-				.withStyle(style -> style.withBold(message.user().bold()).withColor(
-						message.user().color() != null ? TextColor.parseColor(message.user().color()) : null))));
+		try {
+			component.append(ComponentUtils.wrapInSquareBrackets(Component.Serializer.fromJson(message.user())));
+		} catch (JsonParseException e) {
+			if (ack != null) {
+				ack.call(e.getMessage());
+			}
+			return;
+		}
 		component.append(Component.literal(" "));
-		component.append(Component.literal(message.content()));
+		try {
+			component.append(Component.Serializer.fromJson(message.content()));
+		} catch (JsonParseException e) {
+			if (ack != null) {
+				ack.call(e.getMessage());
+			}
+			return;
+		}
 		this.server.getPlayerList().broadcastSystemMessage(component, false);
+		if (ack != null) {
+			ack.call(true);
+		}
 	}
 
 	private void onAnnouncement(Announcement announcement) {
+		this.onAnnouncement(announcement, null);
+	}
+	private void onAnnouncement(Announcement announcement, @Nullable Ack ack) {
 		this.server.getPlayerList().broadcastSystemMessage(Component.literal(announcement.message()), false);
 	}
 
@@ -143,14 +199,16 @@ public class ChatBridge {
 						serverlevel, 4, "Chat Bridge", Component.literal("Chat Bridge"), this.server, (Entity) null),
 				command.command());
 	}
-	
-	private void onUserList(Ack ack) {
-		ack.call(GSON.toJson(this.server.getPlayerList().getPlayers().stream().map(this::makeSentUser).collect(Collectors.toList())));
+
+	private void onQuery(Ack ack) {
+		ack.call(jsonify(new QueryResponse(
+			this.server.getPlayerList().getPlayers().stream().map(this::makeSentUser).collect(Collectors.toList()),
+			Math.min(20, 1000 / this.server.getAverageTickTime()),
+			this.server.getWorldData().overworldData().getGameTime(),
+			this.server.getStatusJson()
+		)));
 	}
-	
-	private void onTPS(Ack ack) {
-		ack.call(Math.min(20, 1000 / this.server.getAverageTickTime()));
-	}
+
 
 	private class BridgeCommandSource implements CommandSource {
 		private final Ack ack;
