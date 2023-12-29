@@ -1,3 +1,5 @@
 package io.github.gingerindustries.chatbridge.schemas.recieved;
 
-public record ReceivedChatMessage(String user, String content) {}
+import java.util.List;
+
+public record ReceivedChatMessage(String user, List<String> content) {}

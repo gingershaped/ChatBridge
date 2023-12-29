@@ -169,7 +169,9 @@ public class ChatBridge {
 		}
 		component.append(Component.literal(" "));
 		try {
-			component.append(Component.Serializer.fromJson(message.content()));
+            for (String str : message.content()) {
+			    component.append(Component.Serializer.fromJson(str));
+            }
 		} catch (JsonParseException e) {
 			if (ack != null) {
 				ack.call(e.getMessage());
