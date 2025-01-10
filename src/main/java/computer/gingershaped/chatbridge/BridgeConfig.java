@@ -1,4 +1,4 @@
-package io.github.gingerindustries.chatbridge;
+package computer.gingershaped.chatbridge;
 
 import org.apache.commons.lang3.tuple.Pair;
 

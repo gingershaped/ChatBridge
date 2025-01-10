@@ -1,4 +1,4 @@
-package io.github.gingerindustries.chatbridge;
+package computer.gingershaped.chatbridge;
 
 import java.net.URI;
 

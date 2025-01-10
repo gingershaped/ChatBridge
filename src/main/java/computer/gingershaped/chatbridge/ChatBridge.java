@@ -1,4 +1,4 @@
-package io.github.gingerindustries.chatbridge;
+package computer.gingershaped.chatbridge;
 
 import java.net.URI;
 import java.util.Collections;
@@ -15,16 +15,16 @@ import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import com.mojang.logging.LogUtils;
 
-import io.github.gingerindustries.chatbridge.schemas.recieved.Announcement;
-import io.github.gingerindustries.chatbridge.schemas.recieved.Command;
-import io.github.gingerindustries.chatbridge.schemas.recieved.ReceivedChatMessage;
-import io.github.gingerindustries.chatbridge.schemas.sent.AdvancementGet;
-import io.github.gingerindustries.chatbridge.schemas.sent.PlayerDied;
-import io.github.gingerindustries.chatbridge.schemas.sent.PlayerJoined;
-import io.github.gingerindustries.chatbridge.schemas.sent.PlayerLeft;
-import io.github.gingerindustries.chatbridge.schemas.sent.QueryResponse;
-import io.github.gingerindustries.chatbridge.schemas.sent.SentChatMessage;
-import io.github.gingerindustries.chatbridge.schemas.sent.SentUser;
+import computer.gingershaped.chatbridge.schemas.recieved.Announcement;
+import computer.gingershaped.chatbridge.schemas.recieved.Command;
+import computer.gingershaped.chatbridge.schemas.recieved.ReceivedChatMessage;
+import computer.gingershaped.chatbridge.schemas.sent.AdvancementGet;
+import computer.gingershaped.chatbridge.schemas.sent.PlayerDied;
+import computer.gingershaped.chatbridge.schemas.sent.PlayerJoined;
+import computer.gingershaped.chatbridge.schemas.sent.PlayerLeft;
+import computer.gingershaped.chatbridge.schemas.sent.QueryResponse;
+import computer.gingershaped.chatbridge.schemas.sent.SentChatMessage;
+import computer.gingershaped.chatbridge.schemas.sent.SentUser;
 import io.socket.client.Ack;
 import io.socket.client.IO;
 import io.socket.client.Manager;

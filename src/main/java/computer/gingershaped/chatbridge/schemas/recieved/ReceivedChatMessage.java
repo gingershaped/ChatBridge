@@ -1,4 +1,4 @@
-package io.github.gingerindustries.chatbridge.schemas.recieved;
+package computer.gingershaped.chatbridge.schemas.recieved;
 
 import java.util.List;
 
