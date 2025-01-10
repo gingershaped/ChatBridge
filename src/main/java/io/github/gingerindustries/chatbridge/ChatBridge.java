@@ -1,6 +1,7 @@
 package io.github.gingerindustries.chatbridge;
 
 import java.net.URI;
+import java.util.Collections;
 import java.util.stream.Collectors;
 
 import org.jetbrains.annotations.Nullable;
@@ -52,10 +53,13 @@ public class ChatBridge {
 	private final MinecraftServer server;
 	private Boolean registeredHandlers = false;
 
-	public ChatBridge(URI uri, MinecraftServer server, IEventBus modEventBus) {
-		LOGGER.info("Connecting to server: " + uri.toASCIIString());
+	public ChatBridge(URI uri, String secret, MinecraftServer server, IEventBus modEventBus) {
+        LOGGER.info("Connecting to server: {}", uri.toASCIIString());
 		this.server = server;
-		this.socket = IO.socket(uri);
+		IO.Options options = IO.Options.builder()
+				.setAuth(Collections.singletonMap("secret", secret))
+				.build();
+		this.socket = IO.socket(uri, options);
 
 		this.socket.io().on(Manager.EVENT_RECONNECT, args -> LOGGER.info("Reconnected to server!"));
 		this.socket.io().on(Manager.EVENT_CLOSE, args -> LOGGER.warn("Connection lost!"));
@@ -76,7 +80,6 @@ public class ChatBridge {
 	}
 
 	private JSONObject jsonify(Object o) {
-		// TODO: This SUCKS!
 		try {
 			return new JSONObject(GSON.toJson(o));
 		} catch (JSONException e) {

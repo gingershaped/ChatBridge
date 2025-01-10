@@ -9,9 +9,15 @@ import net.minecraftforge.fml.config.ModConfig;
 
 public class BridgeConfig {
 	public final ConfigValue<String> serverAddress;
+	public final ConfigValue<String> secret;
 
 	public BridgeConfig(ForgeConfigSpec.Builder builder) {
-		serverAddress = builder.comment("The address of the server to connect to.").comment("Schema is mandatory.").define("serverAddress", "");
+		serverAddress = builder.comment("The address of the server to connect to.")
+				.comment("Schema is mandatory.")
+				.define("serverAddress", "");
+		secret = builder.comment("A secret which will be sent during connection")
+				.comment("as the \"secret\" auth key.")
+				.define("secret", "");
 	}
 	
 	public static final BridgeConfig CONFIG;
@@ -24,6 +30,6 @@ public class BridgeConfig {
 	}
 	
 	public static void register() {
-		ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, spec);
+		ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, spec);
 	}
 }

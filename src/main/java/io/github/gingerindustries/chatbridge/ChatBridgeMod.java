@@ -29,8 +29,12 @@ public class ChatBridgeMod {
 	@SubscribeEvent
 	public void onServerStarted(ServerStartedEvent event) {
 		LOGGER.info("Starting Chat Bridge");
-		ChatBridgeMod.BRIDGE = new ChatBridge(URI.create(BridgeConfig.CONFIG.serverAddress.get()), event.getServer(),
-				MinecraftForge.EVENT_BUS);
+		ChatBridgeMod.BRIDGE = new ChatBridge(
+				URI.create(BridgeConfig.CONFIG.serverAddress.get()),
+				BridgeConfig.CONFIG.secret.get(),
+				event.getServer(),
+				MinecraftForge.EVENT_BUS
+		);
 	}
 	
 	@SubscribeEvent
